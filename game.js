@@ -159,6 +159,7 @@ class DuelScene extends Phaser.Scene {
 
     this.input.on('pointerdown', p => {
       if (this.over) {
+        if (this.time.now < this.restartOkAt) return; // let the results screen be read
         if (this.cleared) {
           this.scene.restart({phase: (this.phase + 1) % PHASES.length, score: this.score, diff: this.diff});
         } else {
@@ -300,12 +301,12 @@ class DuelScene extends Phaser.Scene {
   // map cleared: next round is a fresh city, hours later.
   // round bonuses (not itemized on screen): accuracy and health, difficulty-scaled
   mapClear() {
-    this.over = true; this.cleared = true;
+    this.setScope(false); // before over=true: setScope no-ops once the round is over
+    this.over = true; this.cleared = true; this.restartOkAt = this.time.now + 1200;
     const mult = DIFFS[this.diff].mult;
     if (this.shots) this.score += Math.round(5 * (this.hits / this.shots) * mult);
     this.score += this.hp * mult;
     this.updateHud();
-    this.setScope(false); this.scoped = false;
     const next = PHASES[(this.phase + 1) % PHASES.length].name;
     this.msgText.setText(`AREA CLEAR — score ${this.score}\naccuracy: ${this.accuracy()}\nclick to move out (${next})`).setVisible(true);
   }
@@ -322,8 +323,8 @@ class DuelScene extends Phaser.Scene {
   }
 
   gameOver() {
-    this.over = true;
-    this.setScope(false); this.scoped = false;
+    this.setScope(false); // before over=true: setScope no-ops once the round is over
+    this.over = true; this.restartOkAt = this.time.now + 1200;
     this.squadAim = 0;
     this.enemies.forEach(e => e.glint.setVisible(false));
     this.msgText.setText(`GAME OVER — score ${this.score}\naccuracy: ${this.accuracy()}\nclick for menu`).setVisible(true);
