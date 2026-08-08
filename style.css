@@ -19,7 +19,7 @@ header p { margin: 6px 0 0; font-size: 13px; color: #6d7889; letter-spacing: 3px
   border-radius: 8px;
   box-shadow: 0 10px 50px rgba(0, 0, 0, .6), 0 0 0 1px #0d1117;
 }
-canvas { cursor: none; display: block; border-radius: 3px; }
+canvas { display: block; border-radius: 3px; }
 .controls {
   display: flex; gap: 26px; margin: 16px 0 0;
   font-size: 12px; color: #8a94a6; letter-spacing: 1px;

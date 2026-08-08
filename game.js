@@ -4,7 +4,8 @@ const WORLD_W = 2880; // 3 screens wide; pan with mouse at screen edges
 const TUNE = {
   hp: 3,
   botAccuracy: 0.85,   // hit chance vs a still target; a moving crosshair halves it
-  coverAccuracy: 0.12, // chance a shot clips you through/over the sandbags
+  coverAccLow: 0.03,   // ducked hit chance vs street-level snipers
+  coverAccHigh: 0.22,  // ducked hit chance vs rooftop snipers (steep angle over your sandbags)
   aimTime: 2800,       // ms of clean tracking the sniper needs to line up a shot
   aimDrain: 0.4,       // aim lost per second while you're ducked (sniper remembers your spot)
   shotCooldown: 3000,  // ms the sniper waits after firing before re-aiming
@@ -127,6 +128,9 @@ class DuelScene extends Phaser.Scene {
   create() {
     makeTextures(this);
     this.input.mouse.disableContextMenu();
+    // in the duel the crosshair dot replaces the cursor; restore it on shutdown (menu)
+    this.game.canvas.style.cursor = 'none';
+    this.events.on('shutdown', () => { this.game.canvas.style.cursor = 'default'; });
     this.hp = TUNE.hp; this.score = this.startScore; this.kills = 0; this.over = false;
     this.shots = 0; this.hits = 0;
     this.mag = TUNE.magSize - 1; this.chambered = true; this.reloading = false; // one round rides in the chamber
@@ -330,9 +334,11 @@ class DuelScene extends Phaser.Scene {
     this.nextVolleyAt = this.time.now + TUNE.shotCooldown;
     shooters.forEach(e => e.glint.setVisible(false));
     if (this.over || !shooters.length) return;
-    const acc = !this.scoped ? TUNE.coverAccuracy
+    // ducked: hit chance scales with the shooter's elevation — high windows see over your sandbags
+    const acc = e => !this.scoped
+      ? TUNE.coverAccLow + (TUNE.coverAccHigh - TUNE.coverAccLow) * this.elev(e)
       : wasStill ? TUNE.botAccuracy : TUNE.botAccuracy * 0.5;
-    const hits = shooters.filter(() => Math.random() < acc).length;
+    const hits = shooters.filter(e => Math.random() < acc(e)).length;
     if (hits > 0) {
       this.hp -= hits; this.updateHud();
       this.cameras.main.flash(150, 180, 0, 0);
@@ -343,6 +349,9 @@ class DuelScene extends Phaser.Scene {
       else this.puff(this.cameras.main.scrollX + rand(100, W-100), H-125); // slug hits sandbags
     }
   }
+
+  // 0 at street level, 1 at the highest windows
+  elev(e) { return Phaser.Math.Clamp((430 - e.y) / 290, 0, 1); }
 
   accuracy() {
     return this.shots ? `${this.hits}/${this.shots} shots (${Math.round(100*this.hits/this.shots)}%)` : 'no shots fired';
@@ -420,17 +429,25 @@ class DuelScene extends Phaser.Scene {
     }
 
     // the squad aims together while you're exposed: fast on a still target,
-    // slow on a moving one; slowly forgets while you're ducked
-    const exposed = up.length > 0 && this.scoped && time > this.scopedAt + TUNE.grace && time > this.nextVolleyAt;
+    // slow on a moving one. Ducked, low snipers lose you — but high ones can
+    // still see your head over the sandbags and keep (slowly) lining up.
+    const ready = up.length > 0 && time > this.nextVolleyAt;
+    const exposed = ready && this.scoped && time > this.scopedAt + TUNE.grace;
+    const highWatch = ready && !this.scoped ? Math.max(...up.map(e => this.elev(e))) : 0;
     if (exposed) {
       this.squadAim += (delta / TUNE.aimTime) * (still ? 1 : 0.35);
       this.wasStill = still;
+    } else if (highWatch > 0.4) {
+      this.squadAim += (delta / TUNE.aimTime) * 0.25 * highWatch; // rooftops grind you down
+      this.wasStill = false;
     } else {
       this.squadAim = Math.max(0, this.squadAim - TUNE.aimDrain * delta / 1000);
     }
-    // every aiming sniper glints at lock-on: your last window to duck
+    // every aiming sniper glints at lock-on: your last window to duck (or, if
+    // you're ducked and the roofline glints, to move your head)
+    const aimingNow = exposed || highWatch > 0.4;
     for (const e of this.enemies)
-      e.glint.setPosition(e.x + 5, e.y - 8).setVisible(e.state === 'up' && exposed && this.squadAim > 0.7);
+      e.glint.setPosition(e.x + 5, e.y - 8).setVisible(e.state === 'up' && aimingNow && this.squadAim > 0.7);
     if (this.squadAim >= 1) this.volley(up, this.wasStill);
   }
 }
