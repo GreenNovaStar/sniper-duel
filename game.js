@@ -130,7 +130,6 @@ class DuelScene extends Phaser.Scene {
     this.phaseText = this.add.text(W/2,12,'',{fontSize:18,color:'#ffd'}).setOrigin(0.5,0).setDepth(110).setScrollFactor(0);
     this.hpText = this.add.text(W-16,12,'',{fontSize:22,color:'#e33'}).setOrigin(1,0).setDepth(110).setScrollFactor(0);
     this.msgText = this.add.text(W/2,H/2,'',{fontSize:32,color:'#fff',backgroundColor:'#000a',padding:{x:16,y:8}}).setOrigin(0.5).setDepth(110).setVisible(false).setScrollFactor(0);
-    this.instr = this.add.text(W/2,42,'A sniper hides somewhere in the city — push the mouse to a screen edge to pan and hunt.\nHOLD RIGHT-CLICK to scope, LEFT-CLICK to shoot, duck to stay safe.',{fontSize:14,color:'#fff',backgroundColor:'#0008',padding:{x:8,y:4},align:'center'}).setOrigin(0.5).setDepth(110).setScrollFactor(0);
     this.updateHud();
 
     // scope: second zoomed camera, circle-masked, follows pointer
@@ -140,7 +139,7 @@ class DuelScene extends Phaser.Scene {
     this.scopeCam.setMask(new Phaser.Display.Masks.GeometryMask(this, this.maskG));
     // scope cam draws over the main cam inside the mask, so it must render the
     // reticle itself; ring/cross are kept at 1/zoom scale so they come out 1:1
-    this.scopeCam.ignore([this.cover,this.scoreText,this.phaseText,this.hpText,this.msgText,this.instr]);
+    this.scopeCam.ignore([this.cover,this.scoreText,this.phaseText,this.hpText,this.msgText]);
     this.ring.setScale(1/TUNE.zoom);
 
     // the enemy snipers — difficulty sets how many hunt you at once
@@ -369,4 +368,4 @@ class DuelScene extends Phaser.Scene {
   }
 }
 
-new Phaser.Game({type: Phaser.AUTO, width: W, height: H, backgroundColor: '#111', scene: [MenuScene, DuelScene]});
+new Phaser.Game({type: Phaser.AUTO, parent: 'game', width: W, height: H, backgroundColor: '#111', scene: [MenuScene, DuelScene]});

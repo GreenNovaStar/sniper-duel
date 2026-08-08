@@ -3,10 +3,28 @@
 <head>
 <meta charset="utf-8">
 <title>Sniper Duel 2D</title>
-<style>html,body{margin:0;height:100%;background:#111;display:grid;place-items:center}canvas{cursor:none}</style>
-<script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
+<header>
+  <h1>SNIPER<span class="dot"> • </span>DUEL</h1>
+  <p>FIND THEM BEFORE THEY FIND YOU</p>
+</header>
+<div id="game"></div>
+<div class="controls">
+  <span><b>HOLD RMB</b>scope</span>
+  <span><b>RELEASE RMB</b>duck</span>
+  <span><b>LMB</b>fire</span>
+  <span><b>SCREEN EDGE</b>pan city</span>
+</div>
+<div class="howto">
+  <p>Enemy snipers hide in the dark windows of the city — watch for the faint lens sparkle, then scope in and take the shot.</p>
+  <p>Scoping raises you out of cover: stay up too long and they lock on. A yellow glint means a shot is coming — duck, fast.</p>
+  <p>Ducking after the glint is a gamble; the volley may still clip you through the sandbags. Your rifle is bolt-action: ~2s between shots, so make them count.</p>
+</div>
+<footer><a href="https://github.com/GreenNovaStar/sniper-duel">source on github</a></footer>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
