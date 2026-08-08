@@ -438,11 +438,12 @@ class DuelScene extends Phaser.Scene {
       this.squadAim += (delta / TUNE.aimTime) * (still ? 1 : 0.35);
       this.wasStill = still;
     } else if (highWatch > 0.4) {
-      this.squadAim += (delta / TUNE.aimTime) * 0.25 * highWatch; // rooftops grind you down
+      this.squadAim += (delta / TUNE.aimTime) * 0.6 * highWatch; // rooftops grind you down
       this.wasStill = false;
-    } else {
+    } else if (this.scoped || up.length > 0) {
       this.squadAim = Math.max(0, this.squadAim - TUNE.aimDrain * delta / 1000);
     }
+    // (no drain while every sniper is relocating: your sandbags haven't moved)
     // every aiming sniper glints at lock-on: your last window to duck (or, if
     // you're ducked and the roofline glints, to move your head)
     const aimingNow = exposed || highWatch > 0.4;
