@@ -20,11 +20,12 @@ const TUNE = {
 };
 const rand = (a,b) => a + Math.random()*(b-a);
 
-// difficulty = how many snipers hunt you at once (picked on the main menu)
+// difficulty = how many snipers hunt you at once (picked on the main menu);
+// mult scales all scoring
 const DIFFS = [
-  {name: 'Easy',   concurrent: 1},
-  {name: 'Normal', concurrent: 2},
-  {name: 'Hard',   concurrent: 3},
+  {name: 'Easy',   concurrent: 1, mult: 1},
+  {name: 'Normal', concurrent: 2, mult: 2},
+  {name: 'Hard',   concurrent: 3, mult: 3},
 ];
 
 // each kill advances the clock; tint washes over the whole city
@@ -62,7 +63,7 @@ class MenuScene extends Phaser.Scene {
     this.add.text(W/2, 180, 'choose your hunt', {fontSize: 18, color: '#8a94a6'}).setOrigin(0.5);
 
     DIFFS.forEach((d, i) => {
-      const t = this.add.text(W/2, 260 + i*56, `${d.name} — ${d.concurrent} sniper${d.concurrent > 1 ? 's' : ''} at once`,
+      const t = this.add.text(W/2, 260 + i*56, `${d.name} — ${d.concurrent} sniper${d.concurrent > 1 ? 's' : ''} at once (${d.mult}x score)`,
         {fontSize: 26, color: '#cfd8e3', backgroundColor: '#222c3a', padding: {x: 24, y: 8}})
         .setOrigin(0.5).setInteractive({useHandCursor: true});
       t.on('pointerover', () => t.setColor('#ffee88'));
@@ -260,7 +261,7 @@ class DuelScene extends Phaser.Scene {
       e.hideEv && e.hideEv.remove();
       e.glint.setVisible(false);
       e.setTint(0x883333); e.state = 'dead';
-      this.score++; this.kills++; this.hits++; this.updateHud();
+      this.score += DIFFS[this.diff].mult; this.kills++; this.hits++; this.updateHud();
       this.tweens.add({targets: e, alpha: 0, duration: 500, onComplete: () => {
         e.state = 'down'; e.setVisible(false);
         if (this.kills >= TUNE.enemiesPerMap) this.mapClear();
@@ -296,9 +297,14 @@ class DuelScene extends Phaser.Scene {
     return this.shots ? `${this.hits}/${this.shots} shots (${Math.round(100*this.hits/this.shots)}%)` : 'no shots fired';
   }
 
-  // map cleared: next round is a fresh city, hours later
+  // map cleared: next round is a fresh city, hours later.
+  // round bonuses (not itemized on screen): accuracy and health, difficulty-scaled
   mapClear() {
     this.over = true; this.cleared = true;
+    const mult = DIFFS[this.diff].mult;
+    if (this.shots) this.score += Math.round(5 * (this.hits / this.shots) * mult);
+    this.score += this.hp * mult;
+    this.updateHud();
     this.setScope(false); this.scoped = false;
     const next = PHASES[(this.phase + 1) % PHASES.length].name;
     this.msgText.setText(`AREA CLEAR — score ${this.score}\naccuracy: ${this.accuracy()}\nclick to move out (${next})`).setVisible(true);
