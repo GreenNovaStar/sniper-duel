@@ -9,6 +9,8 @@ const TUNE = {
   aimDrain: 0.4,       // aim lost per second while you're ducked (sniper remembers your spot)
   shotCooldown: 3000,  // ms the sniper waits after firing before re-aiming
   boltTime: 1800,      // ms to cycle your bolt between shots
+  magSize: 5,          // rounds per magazine (one rides in the chamber)
+  reloadTime: 3200,    // ms to swap mags when you run dry
   enemiesPerMap: 5,    // snipers to clear before the round ends
   stillSpeed: 3,       // px/frame under which you count as "holding still"
   dwellMin: 5000, dwellMax: 9000,  // how long the sniper stays at one window
@@ -44,6 +46,10 @@ function makeTextures(scene) {
   g.fillCircle(12,8,7);
   g.lineStyle(2,0x33333d); g.lineBetween(4,18,24,10);
   g.generateTexture('sniper',26,28); g.clear();
+  // rifle round: brass case, copper tip
+  g.fillStyle(0xc9a86a); g.fillRect(2,5,8,12);
+  g.fillStyle(0xb87333); g.fillEllipse(6,4,8,7);
+  g.generateTexture('bullet',12,18); g.clear();
   // player's sandbag cover (bottom of screen)
   g.fillStyle(0x8a7a55); g.fillRect(0,0,W,120);
   g.fillStyle(0x9c8c64);
@@ -123,6 +129,7 @@ class DuelScene extends Phaser.Scene {
     this.input.mouse.disableContextMenu();
     this.hp = TUNE.hp; this.score = this.startScore; this.kills = 0; this.over = false;
     this.shots = 0; this.hits = 0;
+    this.mag = TUNE.magSize - 1; this.chambered = true; this.reloading = false; // one round rides in the chamber
     this.scoped = false; this.scopedAt = 0; this.nextShotAt = 0;
 
     this.cameras.main.setBounds(0, 0, WORLD_W, H);
@@ -152,6 +159,14 @@ class DuelScene extends Phaser.Scene {
     this.phaseText = this.add.text(W/2,12,'',{fontSize:18,color:'#ffd'}).setOrigin(0.5,0).setDepth(110).setScrollFactor(0);
     this.hpText = this.add.text(W-16,12,'',{fontSize:22,color:'#e33'}).setOrigin(1,0).setDepth(110).setScrollFactor(0);
     this.msgText = this.add.text(W/2,H/2,'',{fontSize:32,color:'#fff',backgroundColor:'#000a',padding:{x:16,y:8}}).setOrigin(0.5).setDepth(110).setVisible(false).setScrollFactor(0);
+    // magazine view (bottom-right): chamber slot on the left, then the mag stack
+    this.chamberSlot = this.add.rectangle(W-40-TUNE.magSize*18, H-30, 18, 26, 0x000000, 0.35)
+      .setStrokeStyle(1, 0x8a94a6).setDepth(110).setScrollFactor(0);
+    this.magIcons = Array.from({length: TUNE.magSize}, (_, i) =>
+      this.add.image(W-30-(TUNE.magSize-1-i)*18, H-30, 'bullet').setDepth(111).setScrollFactor(0));
+    this.chamberIcon = this.add.image(this.chamberSlot.x, H-30, 'bullet').setDepth(111).setScrollFactor(0);
+    this.reloadText = this.add.text(this.chamberSlot.x - 18, H-30, '', {fontSize: 13, color: '#e8b04a'})
+      .setOrigin(1, 0.5).setDepth(111).setScrollFactor(0);
     this.updateHud();
 
     // scope: second zoomed camera, circle-masked, follows pointer
@@ -161,7 +176,8 @@ class DuelScene extends Phaser.Scene {
     this.scopeCam.setMask(new Phaser.Display.Masks.GeometryMask(this, this.maskG));
     // scope cam draws over the main cam inside the mask, so it must render the
     // reticle itself; ring/cross are kept at 1/zoom scale so they come out 1:1
-    this.scopeCam.ignore([this.cover,this.scoreText,this.phaseText,this.hpText,this.msgText]);
+    this.scopeCam.ignore([this.cover,this.scoreText,this.phaseText,this.hpText,this.msgText,
+      this.chamberSlot,this.chamberIcon,this.reloadText,...this.magIcons]);
     this.ring.setScale(1/TUNE.zoom);
 
     // the enemy snipers — difficulty sets how many hunt you at once
@@ -269,12 +285,26 @@ class DuelScene extends Phaser.Scene {
   }
 
   fire(p) {
-    if (!this.scoped || this.time.now < this.nextShotAt) return;
-    this.nextShotAt = this.time.now + TUNE.boltTime;
-    this.shots++; this.updateHud();
-    // bolt cycle: reticle drops out and settles back as the action closes
+    if (!this.scoped || !this.chambered || this.time.now < this.nextShotAt) return;
+    this.chambered = false;
+    this.shots++;
+    if (this.mag > 0) {
+      // bolt cycle chambers the next round from the mag
+      this.mag--;
+      this.nextShotAt = this.time.now + TUNE.boltTime;
+      this.time.delayedCall(TUNE.boltTime, () => { this.chambered = true; this.updateHud(); });
+    } else {
+      // dry: full mag swap
+      this.reloading = true;
+      this.nextShotAt = this.time.now + TUNE.reloadTime;
+      this.time.delayedCall(TUNE.reloadTime, () => {
+        this.mag = TUNE.magSize - 1; this.chambered = true; this.reloading = false; this.updateHud();
+      });
+    }
+    this.updateHud();
+    // reticle drops out and settles back as the action closes
     this.ring.setAlpha(0.25);
-    this.tweens.add({targets: this.ring, alpha: 1, duration: TUNE.boltTime, ease: 'Quad.in'});
+    this.tweens.add({targets: this.ring, alpha: 1, duration: this.nextShotAt - this.time.now, ease: 'Quad.in'});
     this.scopeCam.shake(60, 0.004);
     const wx = p.x + this.cameras.main.scrollX;
     const e = this.enemies.find(o => o.state === 'up' && o.getBounds().contains(wx, p.y));
@@ -354,6 +384,10 @@ class DuelScene extends Phaser.Scene {
     this.scoreText.setText(`Score: ${this.score}   Shots: ${this.shots}`);
     this.phaseText.setText(`${PHASES[this.phase].name} (${DIFFS[this.diff].name}) — ${TUNE.enemiesPerMap - this.kills} left`);
     this.hpText.setText('♥'.repeat(Math.max(0, this.hp)));
+    // mag view: stack shows rounds left, chamber slot dims while the bolt cycles
+    this.magIcons.forEach((b, i) => b.setAlpha(i < this.mag ? 1 : 0.15));
+    this.chamberIcon.setAlpha(this.chambered ? 1 : this.reloading ? 0.1 : 0.4);
+    this.reloadText.setText(this.reloading ? 'RELOADING' : '');
   }
 
   update(time, delta) {
