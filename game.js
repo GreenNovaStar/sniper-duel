@@ -22,6 +22,8 @@ const TUNE = {
   panEdge: 60, panSpeed: 550,      // push mouse to a screen edge to pan (px zone, px/s)
 };
 const rand = (a,b) => a + Math.random()*(b-a);
+// ?covertest: auto-start Hard, snipers spawn high, player never scopes — verifies ducked hits
+const COVERTEST = location.search.includes('covertest');
 
 // difficulty = how many snipers hunt you at once (picked on the main menu);
 // mult scales all scoring
@@ -64,6 +66,7 @@ class MenuScene extends Phaser.Scene {
   constructor() { super({key: 'menu'}); }
 
   create() {
+    if (COVERTEST) return this.scene.start('duel', {phase: 0, score: 0, diff: 2});
     const saved = JSON.parse(localStorage.getItem('sniperDuel') || '{}');
     this.add.rectangle(W/2, H/2, W, H, 0x141821);
     this.add.text(W/2, 120, 'SNIPER DUEL', {fontSize: 56, color: '#fff', fontStyle: 'bold'}).setOrigin(0.5);
@@ -250,6 +253,7 @@ class DuelScene extends Phaser.Scene {
       this.spawned++;
     }
     let pool = this.windows;
+    if (COVERTEST) pool = [...pool].sort((a,b) => a.y - b.y).slice(0, 8); // highest windows only
     if (sameBuilding !== undefined) {
       pool = this.windows.filter(w => w.building === sameBuilding && !(w.x === e.x && w.y + 2 === e.y));
       if (!pool.length) pool = this.windows;
@@ -334,11 +338,17 @@ class DuelScene extends Phaser.Scene {
     this.nextVolleyAt = this.time.now + TUNE.shotCooldown;
     shooters.forEach(e => e.glint.setVisible(false));
     if (this.over || !shooters.length) return;
-    // ducked: hit chance scales with the shooter's elevation — high windows see over your sandbags
+    // hit chance scales with the shooter's elevation: high floors have the
+    // better angle — ducked they see over your sandbags, scoped they're deadlier
     const acc = e => !this.scoped
       ? TUNE.coverAccLow + (TUNE.coverAccHigh - TUNE.coverAccLow) * this.elev(e)
-      : wasStill ? TUNE.botAccuracy : TUNE.botAccuracy * 0.5;
+      : Math.min(0.95, (wasStill ? TUNE.botAccuracy : TUNE.botAccuracy * 0.5) * (0.75 + 0.5 * this.elev(e)));
     const hits = shooters.filter(e => Math.random() < acc(e)).length;
+    if (COVERTEST) {
+      this.testVolleys = (this.testVolleys || 0) + 1;
+      this.testHits = (this.testHits || 0) + hits;
+      document.title = `covertest volleys=${this.testVolleys} hitsTaken=${this.testHits} hp=${this.hp - hits}`;
+    }
     if (hits > 0) {
       this.hp -= hits; this.updateHud();
       this.cameras.main.flash(150, 180, 0, 0);
@@ -444,12 +454,14 @@ class DuelScene extends Phaser.Scene {
       this.squadAim = Math.max(0, this.squadAim - TUNE.aimDrain * delta / 1000);
     }
     // (no drain while every sniper is relocating: your sandbags haven't moved)
-    // every aiming sniper glints at lock-on: your last window to duck (or, if
-    // you're ducked and the roofline glints, to move your head)
-    const aimingNow = exposed || highWatch > 0.4;
-    for (const e of this.enemies)
-      e.glint.setPosition(e.x + 5, e.y - 8).setVisible(e.state === 'up' && aimingNow && this.squadAim > 0.7);
-    if (this.squadAim >= 1) this.volley(up, this.wasStill);
+    // every aiming sniper glints at lock-on: your last window to duck. When
+    // you're ducked, only the elevated snipers who can still see you glint.
+    for (const e of this.enemies) {
+      const canAim = exposed || (highWatch > 0.4 && this.elev(e) > 0.4);
+      e.glint.setPosition(e.x + 5, e.y - 8).setVisible(e.state === 'up' && canAim && this.squadAim > 0.7);
+    }
+    if (this.squadAim >= 1)
+      this.volley(this.scoped ? up : up.filter(e => this.elev(e) > 0.4), this.wasStill);
   }
 }
 
