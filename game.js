@@ -101,6 +101,7 @@ class DuelScene extends Phaser.Scene {
     makeTextures(this);
     this.input.mouse.disableContextMenu();
     this.hp = TUNE.hp; this.score = this.startScore; this.kills = 0; this.over = false;
+    this.shots = 0; this.hits = 0;
     this.scoped = false; this.scopedAt = 0; this.nextShotAt = 0;
 
     this.cameras.main.setBounds(0, 0, WORLD_W, H);
@@ -248,6 +249,7 @@ class DuelScene extends Phaser.Scene {
   fire(p) {
     if (!this.scoped || this.time.now < this.nextShotAt) return;
     this.nextShotAt = this.time.now + TUNE.boltTime;
+    this.shots++; this.updateHud();
     // bolt cycle: reticle drops out and settles back as the action closes
     this.ring.setAlpha(0.25);
     this.tweens.add({targets: this.ring, alpha: 1, duration: TUNE.boltTime, ease: 'Quad.in'});
@@ -258,7 +260,7 @@ class DuelScene extends Phaser.Scene {
       e.hideEv && e.hideEv.remove();
       e.glint.setVisible(false);
       e.setTint(0x883333); e.state = 'dead';
-      this.score++; this.kills++; this.updateHud();
+      this.score++; this.kills++; this.hits++; this.updateHud();
       this.tweens.add({targets: e, alpha: 0, duration: 500, onComplete: () => {
         e.state = 'down'; e.setVisible(false);
         if (this.kills >= TUNE.enemiesPerMap) this.mapClear();
@@ -290,12 +292,16 @@ class DuelScene extends Phaser.Scene {
     }
   }
 
+  accuracy() {
+    return this.shots ? `${this.hits}/${this.shots} shots (${Math.round(100*this.hits/this.shots)}%)` : 'no shots fired';
+  }
+
   // map cleared: next round is a fresh city, hours later
   mapClear() {
     this.over = true; this.cleared = true;
     this.setScope(false); this.scoped = false;
     const next = PHASES[(this.phase + 1) % PHASES.length].name;
-    this.msgText.setText(`AREA CLEAR — score ${this.score}\nclick to move out (${next})`).setVisible(true);
+    this.msgText.setText(`AREA CLEAR — score ${this.score}\naccuracy: ${this.accuracy()}\nclick to move out (${next})`).setVisible(true);
   }
 
   puff(x, y) {
@@ -314,11 +320,11 @@ class DuelScene extends Phaser.Scene {
     this.setScope(false); this.scoped = false;
     this.squadAim = 0;
     this.enemies.forEach(e => e.glint.setVisible(false));
-    this.msgText.setText(`GAME OVER — score ${this.score}\nclick for menu`).setVisible(true);
+    this.msgText.setText(`GAME OVER — score ${this.score}\naccuracy: ${this.accuracy()}\nclick for menu`).setVisible(true);
   }
 
   updateHud() {
-    this.scoreText.setText('Score: ' + this.score);
+    this.scoreText.setText(`Score: ${this.score}   Shots: ${this.shots}`);
     this.phaseText.setText(`${PHASES[this.phase].name} (${DIFFS[this.diff].name}) — ${TUNE.enemiesPerMap - this.kills} left`);
     this.hpText.setText('♥'.repeat(Math.max(0, this.hp)));
   }
