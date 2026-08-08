@@ -60,23 +60,43 @@ class MenuScene extends Phaser.Scene {
     const saved = JSON.parse(localStorage.getItem('sniperDuel') || '{}');
     this.add.rectangle(W/2, H/2, W, H, 0x141821);
     this.add.text(W/2, 120, 'SNIPER DUEL', {fontSize: 56, color: '#fff', fontStyle: 'bold'}).setOrigin(0.5);
-    this.add.text(W/2, 180, 'choose your hunt', {fontSize: 18, color: '#8a94a6'}).setOrigin(0.5);
+    this.sub = this.add.text(W/2, 180, '', {fontSize: 18, color: '#8a94a6'}).setOrigin(0.5);
 
+    // no saved run: straight to difficulty; saved run: Continue / New Game first
+    if (saved.score > 0 || saved.phase > 0) this.showMain(saved);
+    else this.showDifficulty();
+  }
+
+  button(y, label, style, onClick) {
+    const t = this.add.text(W/2, y, label, {fontSize: 26, color: '#cfd8e3', backgroundColor: '#222c3a', padding: {x: 24, y: 8}, ...style})
+      .setOrigin(0.5).setInteractive({useHandCursor: true});
+    t.on('pointerover', () => t.setStyle({color: '#ffee88'}));
+    t.on('pointerout', () => t.setStyle({color: style?.color ?? '#cfd8e3'}));
+    t.on('pointerdown', onClick);
+    this.buttons.push(t);
+    return t;
+  }
+
+  clearButtons() {
+    (this.buttons || []).forEach(b => b.destroy());
+    this.buttons = [];
+  }
+
+  showMain(saved) {
+    this.clearButtons();
+    this.sub.setText('the hunt continues');
+    this.button(270, `Continue — ${PHASES[saved.phase ?? 0].name}, score ${saved.score ?? 0} (${DIFFS[saved.diff ?? 0].name})`,
+      {fontSize: 22, color: '#9fd89f', backgroundColor: '#1d2a1d'}, () => this.scene.start('duel', {}));
+    this.button(340, 'New Game', {}, () => this.showDifficulty());
+  }
+
+  showDifficulty() {
+    this.clearButtons();
+    this.sub.setText('choose your hunt');
     DIFFS.forEach((d, i) => {
-      const t = this.add.text(W/2, 260 + i*56, `${d.name} — ${d.concurrent} sniper${d.concurrent > 1 ? 's' : ''} at once (${d.mult}x score)`,
-        {fontSize: 26, color: '#cfd8e3', backgroundColor: '#222c3a', padding: {x: 24, y: 8}})
-        .setOrigin(0.5).setInteractive({useHandCursor: true});
-      t.on('pointerover', () => t.setColor('#ffee88'));
-      t.on('pointerout', () => t.setColor('#cfd8e3'));
-      t.on('pointerdown', () => this.scene.start('duel', {phase: 0, score: 0, diff: i}));
+      this.button(260 + i*56, `${d.name} — ${d.concurrent} sniper${d.concurrent > 1 ? 's' : ''} at once (${d.mult}x score)`,
+        {}, () => this.scene.start('duel', {phase: 0, score: 0, diff: i}));
     });
-
-    if (saved.score > 0 || saved.phase > 0) {
-      const c = this.add.text(W/2, 470, `Continue — ${PHASES[saved.phase ?? 0].name}, score ${saved.score ?? 0} (${DIFFS[saved.diff ?? 0].name})`,
-        {fontSize: 20, color: '#9fd89f', backgroundColor: '#1d2a1d', padding: {x: 20, y: 6}})
-        .setOrigin(0.5).setInteractive({useHandCursor: true});
-      c.on('pointerdown', () => this.scene.start('duel', {}));
-    }
   }
 }
 
